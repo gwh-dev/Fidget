@@ -1,4 +1,4 @@
-
+#ToDo: add linked list maybe instead of array?
 Long<public>:= module {
     using { /Verse.org/Simulation }
 
@@ -14,26 +14,6 @@ Long<public>:= module {
 
     # --- Internal Helper Functions ---
 
-    Parse<internal>(Input:long)<computes>:long = {
-        if (Input.Value.Length = 0) then {
-            return Input
-        }
-
-        NumbString := Input.Value[0] = '-' and Input.Value.Slice[1] or Input.Value
-        IsNegative := Input.Value[0] = '-' and true or false
-        Limbs := for {
-            Index := 0..NumbString.Length
-            EndIndex := NumbString.Length - Index
-            StartIndex := Max(0, EndIndex - BASE_DIGITS)
-            LimbString := NumbString.Slice[StartIndex, EndIndex - 1]
-        }do LimbToInt(LimbString, 0, 0)
-
-        return long {
-            Limbs := Limbs
-            IsNegative := IsNegative
-        }
-    }
-
     LimbToInt<internal>(Input:string, Index:int, Num:int)<computes>:int = {
         return LimbToInt(Input, Index + 1, Num * 10 + case(Input[Index]) {
             '0' => 0; '1' => 1; '2' => 2
@@ -43,6 +23,39 @@ Long<public>:= module {
 
             _ => Err("ERROR: long value are unvalid")
         }) or Num
+    }
+
+    StringToLimbs<internal>(NumbString:string)<computes>:[]int = {
+        return if {
+            NumbString.Length > 0
+
+            StartIndex := Max(0, NumbString.Length - BASE_DIGITS)
+            EndIndex := NumbString.Length
+            
+            LimbString := NumbString.Slice[StartIndex, EndIndex]
+            CurrentLimb := LimbToInt(LimbString, 0, 0)
+            
+            RemainingString := NumbString.Slice[0, StartIndex]
+        } then {
+            array{CurrentLimb} + StringToLimbs(RemainingString)
+        } else {
+            array{}
+        }
+    }
+
+    Parse<internal>(Input:long)<computes>:long = {
+        if (Input.Value.Length = 0) then {
+            return Input
+        }
+
+        NumbString := Input.Value[0] = '-' and Input.Value.Slice[1] or Input.Value
+        IsNegative := Input.Value[0] = '-' and true or false
+        Limbs := StringToLimbs(NumbString)
+
+        return long {
+            Limbs := Limbs
+            IsNegative := IsNegative
+        }
     }
 
     GreatHandler<internal>(Left:long, Right:long)<computes>:logic = {
@@ -58,8 +71,19 @@ Long<public>:= module {
             return Input
         }
 
-        LastChunk := Input[Input.Length-1] or Err()
+        LastChunk := Input[Input.Length-1] or Err("2123")
         return LastChunk = 0 and TrimZeros(Input.Slice[0, Input.Length - 2]) or Input
+    }
+
+    PadLimb<internal>(Input:string)<computes>:string = {
+        PaddingNeeded := BASE_DIGITS - Input.Length
+
+        if (PaddingNeeded <= 0) {
+            return Input
+        }
+        
+        Padding := for(__ := 1..PaddingNeeded) do '0'
+        return Padding + Input
     }
 
     UnsignedAdd<internal>(Left:[]int, Right:[]int, ?Carry:int = 0)<computes>:[]int = {
@@ -74,8 +98,8 @@ Long<public>:= module {
         RTail := Right.Slice[1] or array{}
 
         Total := LChunk + RChunk + Carry
-        Digit := Mod[Total, BASE] or Err()
-        Extra := Floor(Total / BASE) or Err()
+        Digit := Mod[Total, BASE] or Err("9312")
+        Extra := Floor(Total / BASE) or Err("31223")
 
         RemainingLimbs := UnsignedAdd(LTail, RTail, ?Carry := Extra)
 
@@ -139,8 +163,8 @@ Long<public>:= module {
         RemainingLimbs := Limbs.Slice[1] or array{}
         Product := CurrentLimb * Multiplier + Carry
 
-        NewLimb := Mod[Product, BASE] or Err()
-        NewCarry := Floor(Product / BASE) or Err()
+        NewLimb := Mod[Product, BASE] or Err("3123")
+        NewCarry := Floor(Product / BASE) or Err("31543")
 
         ResultTail := UnsignedMulHandler(RemainingLimbs, Multiplier, ?Carry := NewCarry)
 
@@ -159,18 +183,74 @@ Long<public>:= module {
         return true
     }
 
-    FindQuotientLimb<internal>(Current:[]int, Divisor:[]int, ?Low:int = 0, ?High:int = BASE - 1, ?BestQ:int = 0)<computes>:int = {
-        if (Low > High) then {
-            return BestQ
+    # FindQuotientLimb<internal>(Current:[]int, Divisor:[]int, ?Low:int = 0, ?High:int = BASE - 1, ?BestQ:int = 0)<computes>:int = {
+    #     Print("Quotient")
+    #     if (Low > High) then {
+    #         return BestQ
+    #     }
+
+    #     Mid := Floor((Low + High) / 2) or 0
+
+    #     Product := UnsignedMulHandler(Divisor, Mid)
+
+    #     return UnsignedGreatOrEqual(Current, Product)? and FindQuotientLimb(Current, Divisor, ?Low := Mid + 1, ?High := High, ?BestQ := Mid) or (
+    #         FindQuotientLimb(Current, Divisor, ?Low := Low, ?High := Mid - 1, ?BestQ := BestQ)
+    #     )
+    # }
+
+    FindQuotientLimb<internal>(Current:[]int, Divisor:[]int)<computes>:int = {
+        # This function makes an algebraic guess for the quotient.
+        # It's much faster than a binary search.
+        
+        DivisorLen := Divisor.Length
+        CurrentLen := Current.Length
+
+        # Get the most significant limb of the divisor
+        D1 := Divisor[DivisorLen - 1] or 1 # or 1 to prevent /0
+
+        # Case 1: Current is smaller than Divisor
+        if (CurrentLen < DivisorLen) {
+            return 0
         }
 
-        Mid := Floor((Low + High) / 2) or 0
+        # Case 2: Current has the same length as Divisor
+        if (CurrentLen = DivisorLen) {
+            C0 := Current[CurrentLen - 1] or 0
+            if (C0 < D1) { return 0 }
+            
+            # Guess = C0 / D1
+            Guess := Quotient[C0, D1] or 0
+            
+            # This guess can be 1 or 2 too high. We must check and adjust.
+            return AdjustGuess(Current, Divisor, Guess, UnsignedMulHandler(Divisor, Guess))
+        }
 
-        Product := UnsignedMulHandler(Divisor, Mid)
+        # Case 3: Current is 1 limb longer than Divisor
+        if (CurrentLen = DivisorLen + 1) {
+            C1 := Current[CurrentLen - 1] or 0 # Top limb
+            C0 := Current[CurrentLen - 2] or 0 # Second limb
 
-        return UnsignedGreatOrEqual(Current, Product)? and FindQuotientLimb(Current, Divisor, ?Low := Mid + 1, ?High := High, ?BestQ := Mid) or (
-            FindQuotientLimb(Current, Divisor, ?Low := Low, ?High := Mid - 1, ?BestQ := BestQ)
-        )
+            # We estimate Q = (C1*BASE + C0) / D1
+            # We must check for overflow before multiplying by BASE
+            if (C1 >= Floor(BASE / D1)) {
+                # This will overflow or be too large, so Q is max
+                return AdjustGuess(Current, Divisor, BASE - 1, UnsignedMulHandler(Divisor, BASE - 1))
+            }
+            
+            DividendEstimate := (C1 * BASE) + C0
+            Guess := Quotient[DividendEstimate, D1] or 0
+            return AdjustGuess(Current, Divisor, Guess, UnsignedMulHandler(Divisor, Guess))
+        }
+        
+        # Case 4: Current is 2+ limbs longer.
+        # The quotient is definitely larger than BASE, so return max.
+        return AdjustGuess(Current, Divisor, BASE - 1, UnsignedMulHandler(Divisor, BASE - 1))
+    }
+
+    # Helper for FindQuotientLimb to check the guess
+    AdjustGuess<internal>(Current:[]int, Divisor:[]int, Guess:int, RoughProduct:[]int)<computes>:int = {
+        Product := UnsignedSub(RoughProduct, Divisor)
+        return not UnsignedGreatOrEqual(Current, RoughProduct)? and AdjustGuess(Current, Divisor, Guess - 1, Product) or Guess
     }
 
     ReverseLimbs<internal>(Limbs:[]int)<computes>:[]int = {
@@ -241,9 +321,33 @@ Long<public>:= module {
 
     ToString<public>(Input:long)<computes>:string = {
         Parsed := Parse(Input)
-        Length := Parsed.Limbs.Length
-        String := Concatenate(for(Index := 1..Length, Digit := Parsed.Limbs[Length - Index]) do "{Digit}")
-        return Parsed.IsNegative? and "-" + String or String
+
+        if (Parsed.Limbs.Length = 0 or Parsed.Limbs.Length = 1 and Parsed.Limbs[0] = 0) {
+            return "0"
+        }
+
+        if {
+            # Get the most significant limb (last in the array)
+            LastIndex := Parsed.Limbs.Length - 1
+            FirstLimb := Parsed.Limbs[LastIndex] or 0
+            
+            # Get the rest of the limbs
+            OtherLimbs := Parsed.Limbs.Slice[0, LastIndex]
+            
+            # Iterate the "other" limbs in reverse (from most to least significant)
+            # and pad them with leading zeros.
+            RestString := Concatenate(
+                for(Index := 1..OtherLimbs.Length) do {
+                    Limb := OtherLimbs[OtherLimbs.Length - Index]
+                    PadLimb("{Limb}")
+                }
+            )
+
+            # Combine the first limb (unpadded) with the rest (padded)
+            String := "{FirstLimb}" + RestString
+        } then return Parsed.IsNegative? and "-" + String or String
+
+        return "0"
     }
 
     FromInt<public>(Value:int)<computes>:long = {
@@ -257,9 +361,14 @@ Long<public>:= module {
     }
 
     Great<public>(Left:long, Right:long)<computes><decides>:void = {
+        # Case 1: Positive > Negative
         not Left.IsNegative? and Right.IsNegative? or
-        not Left.IsNegative? and Left.Limbs.Length > Right.Limbs.Length or GreatHandler(Left, Right)?
-        Left.IsNegative? and Left.Limbs.Length < Right.Limbs.Length or GreatHandler(Right, Left)?
+        
+        # Case 2: Positive > Positive
+        not Left.IsNegative? and (Left.Limbs.Length > Right.Limbs.Length or Left.Limbs.Length = Right.Limbs.Length and GreatHandler(Left, Right)?) or
+
+        # Case 3: Negative > Negative
+        Left.IsNegative? and (Left.Limbs.Length < Right.Limbs.Length or Left.Limbs.Length = Right.Limbs.Length and GreatHandler(Right, Left)?)
     }
 
     Small<public>(Left:long, Right:long)<computes><decides>:void = {
@@ -381,7 +490,7 @@ Long<public>:= module {
         }
     }
 
-    Mod<public>(Left:long, Right:int)<computes>:long = {
+    Mod<public>(Left:long, Right:int):long = {
         return Mod(Left, FromInt(Right))
     }
 
@@ -396,18 +505,19 @@ Long<public>:= module {
     operator'/'<public>(Left:int, Right:long)<computes>:long = FromInt(Left) / Right
 
     # long_test_component := class<final_super>(component) {
+    #     @editable
+    #     FirstNumber:long = long {}
+
+    #     @editable
+    #     SecondNumber:long = long {}
+
+    #     @editable
+    #     ParseTest:int = 12345
 
     #     OnBeginSimulation<override>():void = {
     #         (super:)OnBeginSimulation()
 
-    #         FirstNumber:long = long {
-    #             Value := "2222222222222222222222"
-    #         }
-
-    #         SecondNumber:long = long {
-    #             Value := "1111222233334444555566"
-    #         }
-
+    #         Print(ToString(Parse(FromInt(ParseTest))))
 
     #         profile("FirstNumber + SecondNumber Time:") {
     #             Print("FirstNumber + SecondNumber = " + ToString(FirstNumber + SecondNumber))
