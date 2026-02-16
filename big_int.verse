@@ -1,11 +1,11 @@
 #ToDo: add linked list maybe instead of array?
-Long<public>:= module {
+BigInt<public>:= module {
     using { /Verse.org/Simulation }
 
     BASE<internal>:int = 1000000000
     BASE_DIGITS<internal>:int = 9
 
-    long<public>:= struct<persistable><computes><concrete>{
+    big_int<public>:= struct<persistable><computes><concrete>{
         @editable
         Value:string = array{}
         Limbs:[]int = array{}
@@ -21,7 +21,7 @@ Long<public>:= module {
             '6' => 6; '7' => 7; '8' => 8
             '9' => 9
 
-            _ => Err("ERROR: long value are unvalid")
+            _ => Err("ERROR: big_int value are unvalid")
         }) or Num
     }
 
@@ -43,7 +43,7 @@ Long<public>:= module {
         }
     }
 
-    Parse<internal>(Input:long)<computes>:long = {
+    Parse<internal>(Input:big_int)<computes>:big_int = {
         if (Input.Value.Length = 0) then {
             return Input
         }
@@ -52,14 +52,14 @@ Long<public>:= module {
         IsNegative := Input.Value[0] = '-' and true or false
         Limbs := StringToLimbs(NumbString)
 
-        return long {
+        return big_int {
             Limbs := Limbs
             IsNegative := IsNegative
         }
     }
 
-    GreatHandler<internal>(Left:long, Right:long)<computes>:logic = {
-        for(Index := 1..Left.Limbs.Length, CurrentIndex := Left.Limbs.Length - Index) do {
+    GreatHandler<internal>(Left:big_int, Right:big_int)<computes>:logic = {
+        for (Index := 1..Left.Limbs.Length, CurrentIndex := Left.Limbs.Length - Index) do {
             if (Left.Limbs[CurrentIndex] > Right.Limbs[CurrentIndex]) then return true
             if (Left.Limbs[CurrentIndex] < Right.Limbs[CurrentIndex]) then return false
         }
@@ -199,41 +199,30 @@ Long<public>:= module {
     # }
 
     FindQuotientLimb<internal>(Current:[]int, Divisor:[]int)<computes>:int = {
-        # This function makes an algebraic guess for the quotient.
-        # It's much faster than a binary search.
         
         DivisorLen := Divisor.Length
         CurrentLen := Current.Length
 
-        # Get the most significant limb of the divisor
         D1 := Divisor[DivisorLen - 1] or 1 # or 1 to prevent /0
 
-        # Case 1: Current is smaller than Divisor
         if (CurrentLen < DivisorLen) {
             return 0
         }
 
-        # Case 2: Current has the same length as Divisor
         if (CurrentLen = DivisorLen) {
             C0 := Current[CurrentLen - 1] or 0
             if (C0 < D1) { return 0 }
             
-            # Guess = C0 / D1
             Guess := Quotient[C0, D1] or 0
             
-            # This guess can be 1 or 2 too high. We must check and adjust.
             return AdjustGuess(Current, Divisor, Guess, UnsignedMulHandler(Divisor, Guess))
         }
 
-        # Case 3: Current is 1 limb longer than Divisor
         if (CurrentLen = DivisorLen + 1) {
-            C1 := Current[CurrentLen - 1] or 0 # Top limb
-            C0 := Current[CurrentLen - 2] or 0 # Second limb
+            C1 := Current[CurrentLen - 1] or 0
+            C0 := Current[CurrentLen - 2] or 0
 
-            # We estimate Q = (C1*BASE + C0) / D1
-            # We must check for overflow before multiplying by BASE
             if (C1 >= Floor(BASE / D1)) {
-                # This will overflow or be too large, so Q is max
                 return AdjustGuess(Current, Divisor, BASE - 1, UnsignedMulHandler(Divisor, BASE - 1))
             }
             
@@ -242,12 +231,9 @@ Long<public>:= module {
             return AdjustGuess(Current, Divisor, Guess, UnsignedMulHandler(Divisor, Guess))
         }
         
-        # Case 4: Current is 2+ limbs longer.
-        # The quotient is definitely larger than BASE, so return max.
         return AdjustGuess(Current, Divisor, BASE - 1, UnsignedMulHandler(Divisor, BASE - 1))
     }
 
-    # Helper for FindQuotientLimb to check the guess
     AdjustGuess<internal>(Current:[]int, Divisor:[]int, Guess:int, RoughProduct:[]int)<computes>:int = {
         Product := UnsignedSub(RoughProduct, Divisor)
         return not UnsignedGreatOrEqual(Current, RoughProduct)? and AdjustGuess(Current, Divisor, Guess - 1, Product) or Guess
@@ -260,66 +246,47 @@ Long<public>:= module {
     }
 
     UnsignedDivModHandler<internal>(
-        Dividend:[]int,     # The full (little-endian) dividend
-        Divisor:[]int,      # The divisor
-        Index:int,          # Current limb index (starts at Dividend.Length - 1)
-        CurrentRemainder:[]int, # Remainder from the previous step
-        QuotientLimbs:[]int # Partially built (big-endian) quotient
+        Dividend:[]int,
+        Divisor:[]int,
+        Index:int,
+        CurrentRemainder:[]int,
+        QuotientLimbs:[]int
     )<computes>:tuple([]int, []int) = {
 
         CurrentLimb := Dividend[Index] or 0
 
-        # 1. "Bring down" the next limb:
-        # CurrentDividend = (CurrentRemainder * BASE) + CurrentLimb
-        # In little-endian: {CurrentLimb} + {R0, R1, ...} -> {CurrentLimb, R0, R1, ...}
-
-        # (CurrentRemainder * BASE) -> {0, R0, R1, ...}
         ShiftedRemainder := CurrentRemainder.Length = 1 and CurrentRemainder[0] = 0 and array{0} or array{0} + CurrentRemainder
 
-        # (R * BASE) + CurrentLimb
         TailOfRemainder := ShiftedRemainder.Slice[1] or array{}
         CurrentDividend := array{CurrentLimb} + TailOfRemainder
         TrimmedDividend := TrimZeros(CurrentDividend)
         
-        # 2. Find quotient for this step
         QuotientLimb := FindQuotientLimb(TrimmedDividend, Divisor)
         
-        # 3. Add to quotient (handling leading zeros)
         NewQuotientLimbs := (QuotientLimbs.Length > 0 or QuotientLimb > 0) and QuotientLimbs + array{QuotientLimb} or QuotientLimbs
 
-        # 4. Find new remainder
         Product := UnsignedMulHandler(Divisor, QuotientLimb)
         NewRemainder := UnsignedSub(TrimmedDividend, Product)
 
-        # 5. Base case or recurse
-            # Last limb processed, return final results or
-            # Recurse with the next limb (Index - 1)
         return Index = 0 and (NewQuotientLimbs, NewRemainder) or (
             UnsignedDivModHandler(Dividend, Divisor, Index - 1, NewRemainder, NewQuotientLimbs)
         )
     }
 
-    # Wrapper for the unsigned division, sets up and reverses the result
     UnsignedDivMod<internal>(Dividend:[]int, Divisor:[]int)<computes>:tuple([]int, []int) = {
-        # Start the recursive process from the most significant limb (Index = Length - 1)
-        # Pass array{0} as the initial remainder and array{} as the initial quotient
         Result := UnsignedDivModHandler(Dividend, Divisor, Dividend.Length - 1, array{0}, array{})
 
         BigEndianQuotient := Result(0)
         FinalRemainder := Result(1)
         
-        # The quotient was built big-endian, so we must reverse it
         ReversedQuotient := ReverseLimbs(BigEndianQuotient)
         
-        # Handle edge case where quotient is 0
         FinalQuotient := ReversedQuotient.Length = 0 and array{0} or TrimZeros(ReversedQuotient)
 
         return (FinalQuotient, TrimZeros(FinalRemainder))
     }
 
-    # --- Public Helper Functions ---
-
-    ToString<public>(Input:long)<computes>:string = {
+    ToString<public>(Input:big_int)<computes>:string = {
         Parsed := Parse(Input)
 
         if (Parsed.Limbs.Length = 0 or Parsed.Limbs.Length = 1 and Parsed.Limbs[0] = 0) {
@@ -327,15 +294,11 @@ Long<public>:= module {
         }
 
         if {
-            # Get the most significant limb (last in the array)
             LastIndex := Parsed.Limbs.Length - 1
             FirstLimb := Parsed.Limbs[LastIndex] or 0
             
-            # Get the rest of the limbs
             OtherLimbs := Parsed.Limbs.Slice[0, LastIndex]
             
-            # Iterate the "other" limbs in reverse (from most to least significant)
-            # and pad them with leading zeros.
             RestString := Concatenate(
                 for(Index := 1..OtherLimbs.Length) do {
                     Limb := OtherLimbs[OtherLimbs.Length - Index]
@@ -343,92 +306,84 @@ Long<public>:= module {
                 }
             )
 
-            # Combine the first limb (unpadded) with the rest (padded)
             String := "{FirstLimb}" + RestString
         } then return Parsed.IsNegative? and "-" + String or String
 
         return "0"
     }
 
-    FromInt<public>(Value:int)<computes>:long = {
-        return Parse(long{Value := "{ToString(Value)}"})
+    FromInt<public>(Value:int)<computes>:big_int = {
+        return Parse(big_int{Value := "{ToString(Value)}"})
     }
 
-    Equal<public>(Left:long, Right:long)<computes><decides>:void = {
+    Equal<public>(Left:big_int, Right:big_int)<computes><decides>:void = {
         Left.IsNegative = Right.IsNegative
         Left.Limbs.Length = Right.Limbs.Length
         for(Index := 0..Left.Limbs.Length - 1) do Left.Limbs[Index] = Right.Limbs[Index]
     }
 
-    Great<public>(Left:long, Right:long)<computes><decides>:void = {
-        # Case 1: Positive > Negative
+    Great<public>(Left:big_int, Right:big_int)<computes><decides>:void = {
         not Left.IsNegative? and Right.IsNegative? or
-        
-        # Case 2: Positive > Positive
         not Left.IsNegative? and (Left.Limbs.Length > Right.Limbs.Length or Left.Limbs.Length = Right.Limbs.Length and GreatHandler(Left, Right)?) or
-
-        # Case 3: Negative > Negative
         Left.IsNegative? and (Left.Limbs.Length < Right.Limbs.Length or Left.Limbs.Length = Right.Limbs.Length and GreatHandler(Right, Left)?)
     }
 
-    Small<public>(Left:long, Right:long)<computes><decides>:void = {
+    Small<public>(Left:big_int, Right:big_int)<computes><decides>:void = {
         Great[Right, Left]
     }
 
-    # --- Public Arithmetics Operators ---
-
-    operator'+'<public>(Left:long, Right:long)<computes>:long = {
+    operator'+'<public>(Left:big_int, Right:big_int)<computes>:big_int = {
         LParsed := Parse(Left)
         RParsed := Parse(Right)
 
         if (LParsed.IsNegative = RParsed.IsNegative) then {
-            return long {
+            return big_int {
                 Limbs := UnsignedAdd(LParsed.Limbs, RParsed.Limbs)
                 IsNegative := LParsed.IsNegative
             }
         }
 
-        AbsLeft := long {Limbs := LParsed.Limbs, IsNegative := false}
-        AbsRight := long {Limbs := RParsed.Limbs, IsNegative := false}
+        AbsLeft := big_int {Limbs := LParsed.Limbs, IsNegative := false}
+        AbsRight := big_int {Limbs := RParsed.Limbs, IsNegative := false}
 
         Result := Great[AbsLeft, AbsRight] and (UnsignedSub(LParsed.Limbs, RParsed.Limbs), LParsed.IsNegative) or
                   Small[AbsLeft, AbsRight] and (UnsignedSub(RParsed.Limbs, LParsed.Limbs), RParsed.IsNegative) or
                   (array{0}, false)
 
-        return long {
+        return big_int {
             Limbs := Result(0)
             IsNegative := Result(1)
         }
     }
 
-    operator'-'<public>(Left:long, Right:long)<computes>:long = {
+    operator'-'<public>(Left:big_int, Right:big_int)<computes>:big_int = {
         LParsed := Parse(Left)
         RParsed := Parse(Right)
-        FlippedRight := long { Limbs := RParsed.Limbs, IsNegative := not RParsed.IsNegative? and true or false}
+        FlippedRight := big_int { Limbs := RParsed.Limbs, IsNegative := not RParsed.IsNegative? and true or false}
         return LParsed + FlippedRight
     }
 
-    operator'*'<public>(Left:long, Right:long)<computes>:long = {
+    operator'*'<public>(Left:big_int, Right:big_int)<computes>:big_int = {
         LParsed := Parse(Left)
         RParsed := Parse(Right)
         Limbs := UnsignedMul(LParsed.Limbs, RParsed.Limbs)
         IsNegative := LParsed.IsNegative <> RParsed.IsNegative and true or false
-        return long {Limbs := Limbs, IsNegative := IsNegative}
+        return big_int {Limbs := Limbs, IsNegative := IsNegative}
     }
 
-    operator'/'<public>(Left:long, Right:long)<computes>:long = {
+    operator'/'<public>(Left:big_int, Right:big_int)<computes>:big_int = {
         LParsed := Parse(Left)
         RParsed := Parse(Right)
 
         # 1. Check for division by zero
         if (RParsed.Limbs.Length = 1 and RParsed.Limbs[0] = 0) {
             Err("ERROR: Division by zero")
-            return long{} # Or use panic()
+            return big_int{} # Or use panic()
         }
 
         # 2. Check if dividend is zero
         if (LParsed.Limbs.Length = 1 and LParsed.Limbs[0] = 0) {
-            return long{Limbs := array{0}, IsNegative := false}
+            return big_int{Limbs := array{0}, IsNegative := false}
         }
 
         # 3. Compare absolute values
@@ -437,7 +392,7 @@ Long<public>:= module {
         
         if (not UnsignedGreatOrEqual(AbsLeft, AbsRight)?) {
             # |Left| < |Right|, so quotient is 0
-            return long{Limbs := array{0}, IsNegative := false}
+            return big_int{Limbs := array{0}, IsNegative := false}
         }
 
         # 4. Perform unsigned division
@@ -448,68 +403,62 @@ Long<public>:= module {
         # 5. Determine sign
         IsNegative := LParsed.IsNegative <> RParsed.IsNegative and true or false
 
-        return long {
+        return big_int {
             Limbs := ResultQuotient
             IsNegative := IsNegative
         }
     }
 
-    Mod<public>(Left:long, Right:long)<computes>:long = {
+    Mod<public>(Left:big_int, Right:big_int)<computes>:big_int = {
         LParsed := Parse(Left)
         RParsed := Parse(Right)
 
-        # 1. Check for modulo by zero
         if (RParsed.Limbs.Length = 1 and RParsed.Limbs[0] = 0) {
             Err("ERROR: Modulo by zero")
-            return long{} # Or use panic()
+            return big_int{} # Or use panic()
         }
 
-        # 2. Check if dividend is zero
         if (LParsed.Limbs.Length = 1 and LParsed.Limbs[0] = 0) {
-            return long{Limbs := array{0}, IsNegative := false}
+            return big_int{Limbs := array{0}, IsNegative := false}
         }
 
-        # 3. Compare absolute values
         AbsLeft := LParsed.Limbs
         AbsRight := RParsed.Limbs
 
         if (not UnsignedGreatOrEqual(AbsLeft, AbsRight)?) {
-            # |Left| < |Right|, remainder is just Left
             return LParsed
         }
 
-        # 4. Perform unsigned division
         Result := UnsignedDivMod(AbsLeft, AbsRight)
         ResultQuotient := Result(0)
         ResultRemainder := Result(1)
 
-        # 5. Sign of remainder always matches the dividend (Left)
-        return long {
+        return big_int {
             Limbs := ResultRemainder
             IsNegative := LParsed.IsNegative
         }
     }
 
-    Mod<public>(Left:long, Right:int):long = {
+    Mod<public>(Left:big_int, Right:int):big_int = {
         return Mod(Left, FromInt(Right))
     }
 
-    operator'+'<public>(Left:long, Right:int)<computes>:long = Left + FromInt(Right)
-    operator'-'<public>(Left:long, Right:int)<computes>:long = Left - FromInt(Right)
-    operator'*'<public>(Left:long, Right:int)<computes>:long = Left * FromInt(Right)
-    operator'/'<public>(Left:long, Right:int)<computes>:long = Left / FromInt(Right)
+    operator'+'<public>(Left:big_int, Right:int)<computes>:big_int = Left + FromInt(Right)
+    operator'-'<public>(Left:big_int, Right:int)<computes>:big_int = Left - FromInt(Right)
+    operator'*'<public>(Left:big_int, Right:int)<computes>:big_int = Left * FromInt(Right)
+    operator'/'<public>(Left:big_int, Right:int)<computes>:big_int = Left / FromInt(Right)
 
-    operator'+'<public>(Left:int, Right:long)<computes>:long = FromInt(Left) + Right
-    operator'-'<public>(Left:int, Right:long)<computes>:long = FromInt(Left) - Right
-    operator'*'<public>(Left:int, Right:long)<computes>:long = FromInt(Left) * Right
-    operator'/'<public>(Left:int, Right:long)<computes>:long = FromInt(Left) / Right
+    operator'+'<public>(Left:int, Right:big_int)<computes>:big_int = FromInt(Left) + Right
+    operator'-'<public>(Left:int, Right:big_int)<computes>:big_int = FromInt(Left) - Right
+    operator'*'<public>(Left:int, Right:big_int)<computes>:big_int = FromInt(Left) * Right
+    operator'/'<public>(Left:int, Right:big_int)<computes>:big_int = FromInt(Left) / Right
 
-    # long_test_component := class<final_super>(component) {
+    # big_int_test_component := class<final_super>(component) {
     #     @editable
-    #     FirstNumber:long = long {}
+    #     FirstNumber:big_int = big_int {}
 
     #     @editable
-    #     SecondNumber:long = long {}
+    #     SecondNumber:big_int = big_int {}
 
     #     @editable
     #     ParseTest:int = 12345
