@@ -1,4 +1,3 @@
-
 Random<public>:= module {
     using { /Verse.org/Random }
     using { /Verse.org/Simulation }

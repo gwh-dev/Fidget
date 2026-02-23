@@ -1,6 +1,4 @@
-using { /Verse.org/SceneGraph }
-
-FidgetStateMachine := module:
+FidgetMachine<public>:= module:
     using { /Verse.org/Simulation }
 
     execution_function<internal>:= type{_():void}
@@ -62,22 +60,22 @@ FidgetStateMachine := module:
         
         return InState
 
-    InternalWaitTransition<internal>(Machine:machine, InState:?state, States:[comparable]state)<suspends>:?state =
-        Result := Machine.Await()
+    InternalWaitTransition<internal>(InMachine:machine, InState:?state, InStates:[comparable]state)<suspends>:?state =
+        Result := InMachine.Await()
 
         if (Transitions := InState?.Transitions[Result]) then:
             for:
                 _Transition : Transitions
                 Passed  := for (_Condition : _Transition.Conditions, _Condition[]) do void
                 Passed.Length = _Transition.Conditions.Length
-                NewState := States[_Transition.State]
+                NewState := InStates[_Transition.State]
             do:
                 for (_Execute : _Transition.Executions) do _Execute()
                 return option {NewState}
         
         return InState
 
-    (Machine:machine).Run<public>(Initial:state_t, States:[state_t]state where state_t:subtype(comparable))<suspends>:void =
+    (InMachine:machine).Run<public>(Initial:state_t, States:[state_t]state where state_t:subtype(comparable))<suspends>:void =
         var CurrentState:?state = false
 
         if (InitialState := States[Initial]) then:
@@ -89,12 +87,12 @@ FidgetStateMachine := module:
                 if (OnEnter := _State.OnEnter?) then race:
                     block:
                         OnEnter()
-                        Machine.Signal("Done")
+                        InMachine.Signal("Done")
                     block:
-                        InternalWaitTransition(Machine, CurrentState, States)
-                        Machine.Signal("Canceled")
+                        InternalWaitTransition(InMachine, CurrentState, States)
+                        InMachine.Signal("Canceled")
                 else:
-                    InternalWaitTransition(Machine, CurrentState, States)
+                    InternalWaitTransition(InMachine, CurrentState, States)
             else break
     
     State<public>(InTransitions:[]transition):state =
@@ -132,21 +130,3 @@ FidgetStateMachine := module:
 
     Condition<public>(Function:condition_function):transition_functions =
         return transition_functions {MaybeCondition := option {Function}}
-
-    test_component := class<final_super>(component) {
-
-        Machine:machine = machine{}
-
-        OnSimulate<override>()<suspends>:void =
-            Machine.Run("Idle", map {
-                "Idle" => State(
-                    Transition("Toggle", "Walk", (
-                        Execute(OnWalk)
-                        Condition(OnWalkCondition)
-                    ))
-                )
-            })
-        
-        OnWalk():void = {}
-        OnWalkCondition()<transacts><decides>:void = {}
-    }
