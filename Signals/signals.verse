@@ -18,6 +18,7 @@ signal<public>(t:subtype(comparable)) := class<abstract>(reactive_node, signal_g
         set Flags.IsMutable = true
 
     Update<final><override>()<transacts><decides>:void =
+        set Flags = reactive_flags{IsMutable := true}
         GetCurrentValue() <> GetPendingValue()
         SetCurrentValue(GetPendingValue())
 

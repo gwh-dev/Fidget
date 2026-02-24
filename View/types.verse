@@ -1,16 +1,23 @@
-using { /Verse.org/Simulation }
-using { /Verse.org/Colors }
 
-alignment<public>:= enum:
-    HorizontalFill
-    HorizontalCenter
-    HorizontalLeft
-    HorizontalRight
+padding<public>:= struct:
+    Top:float = 0.0
+    Left:float = 0.0
+    Right:float = 0.0
+    Bottom:float = 0.0
 
-    VerticalFill
-    VerticalCenter
-    VerticalTop
-    VerticalBottom
+MakePadding<public>(InPadding:padding):padding = InPadding
+
+horizontal<public>:= enum:
+    Fill
+    Center
+    Left
+    Right
+
+vertical<public>:= enum:
+    Fill
+    Center
+    Top
+    Bottom
 
 visibility<public>:= enum:
     Visible
@@ -31,14 +38,6 @@ justification<public>:= enum:
 overflow_policy<public>:= enum:
     Clip
     Ellipsis
-
-padding<public>:= struct:
-    Top:float = 0.0
-    Left:float = 0.0
-    Right:float = 0.0
-    Bottom:float = 0.0
-
-MakePadding<public>(InPadding:padding):padding = InPadding
 
 ToWidgetVisibility<public>(V:visibility):UEUI.widget_visibility =
     case(V):

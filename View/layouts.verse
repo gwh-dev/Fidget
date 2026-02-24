@@ -10,19 +10,17 @@ BuildMargin<internal>(InView:view):UEUI.margin =
 
 BuildHorizontalAlignment<internal>(InView:view):UEUI.horizontal_alignment =
     case(InView.HorizontalAlignment):
-        alignment.HorizontalFill => UEUI.horizontal_alignment.Fill
-        alignment.HorizontalCenter => UEUI.horizontal_alignment.Center
-        alignment.HorizontalLeft => UEUI.horizontal_alignment.Left
-        alignment.HorizontalRight => UEUI.horizontal_alignment.Right
-        _ => Err()
+        horizontal.Fill => UEUI.horizontal_alignment.Fill
+        horizontal.Center => UEUI.horizontal_alignment.Center
+        horizontal.Left => UEUI.horizontal_alignment.Left
+        horizontal.Right => UEUI.horizontal_alignment.Right
 
 BuildVerticalAlignment<internal>(InView:view):UEUI.vertical_alignment =
     case(InView.VerticalAlignment):
-        alignment.VerticalFill => UEUI.vertical_alignment.Fill
-        alignment.VerticalCenter => UEUI.vertical_alignment.Center
-        alignment.VerticalTop => UEUI.vertical_alignment.Top
-        alignment.VerticalBottom => UEUI.vertical_alignment.Bottom
-        _ => Err()
+        vertical.Fill => UEUI.vertical_alignment.Fill
+        vertical.Center => UEUI.vertical_alignment.Center
+        vertical.Top => UEUI.vertical_alignment.Top
+        vertical.Bottom => UEUI.vertical_alignment.Bottom
 
 BuildStack<internal>(InChildren:[]view, InOrientation:UEUI.orientation):UEUI.widget =
     Slots : []UEUI.stack_box_slot = for (_Child : InChildren) do:

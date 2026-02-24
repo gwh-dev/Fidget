@@ -384,6 +384,7 @@ reactive_system<internal>:= class<final><concrete><transacts>:
 
         set NotifyIndex = 0
         set QueuedLength = 0
+        set QueuedEffects = array{}
 
     DequeueEffect()<transacts>:void =
         set QueuedEffects = SetArrayElement(QueuedEffects, NotifyIndex, false)

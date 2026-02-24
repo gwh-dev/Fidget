@@ -49,6 +49,8 @@ text<public>:= class(view, colorable, opacity_able, text_justifiable, text_overf
 
 
 button<public>:= class(view, clickable, highlightable):
+    IsInteractable<override>()<transacts><decides>:void = {}
+
     Child<public>:view
 
     var<private>NativeButton<public>:?UEUI.button = false
