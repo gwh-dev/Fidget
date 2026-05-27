@@ -34,6 +34,28 @@ BuildStack<internal>(InChildren:[]view, InOrientation:UEUI.orientation):UEUI.wid
     
     UEUI.stack_box {Orientation := InOrientation, Slots := Slots}
 
+UpdateStackBoxSlot<internal>(NativeStackBox:UEUI.stack_box, InChildren:[]view, InChildView:view):void =
+    var IndexToRemove:int = -1
+    TargetWidget := InChildView.OnBuildWidget()
+    for (Index -> Child : InChildren) do:
+        if (Child.OnBuildWidget() = TargetWidget) then:
+            set IndexToRemove = Index
+
+    if (IndexToRemove >= 0) then:
+        for (Index := IndexToRemove..InChildren.Length - 1) do:
+            if (ChildToRemove := InChildren[Index]) then:
+                NativeStackBox.RemoveWidget(ChildToRemove.OnBuildWidget())
+
+        for (Index := IndexToRemove..InChildren.Length - 1) do:
+            if (ChildToAdd := InChildren[Index]) then:
+                NativeStackBox.AddWidget(UEUI.stack_box_slot {
+                    Widget := ChildToAdd.OnBuildWidget()
+                    Padding := BuildMargin(ChildToAdd)
+                    HorizontalAlignment := BuildHorizontalAlignment(ChildToAdd)
+                    VerticalAlignment := BuildVerticalAlignment(ChildToAdd)
+                    Distribution := ChildToAdd.MyDistribution
+                })
+
 vstack<public> := class(view):
     InternalBuildWidget<override>():UEUI.widget =
         for (Child : Children) do:
@@ -42,28 +64,7 @@ vstack<public> := class(view):
 
     UpdateChildSlot<override>(InChildView:view):void =
         if (NativeStackBox := UEUI.stack_box[BuiltWidget?]) then:
-            var IndexToRemove:int = -1
-            TargetWidget := InChildView.OnBuildWidget()
-            for (Index -> Child : Children) do:
-                SourceWidget := Child.OnBuildWidget()
-                if (SourceWidget = TargetWidget) then:
-                    set IndexToRemove = Index
-            
-            if (IndexToRemove >= 0) then:
-                for (Index := IndexToRemove..Children.Length - 1) do:
-                    if (ChildToRemove := Children[Index]) then:
-                        NativeStackBox.RemoveWidget(ChildToRemove.OnBuildWidget())
-                
-                for (Index := IndexToRemove..Children.Length - 1) do:
-                    if (ChildToAdd := Children[Index]) then:
-                        NewSlot := UEUI.stack_box_slot {
-                            Widget := ChildToAdd.OnBuildWidget()
-                            Padding := BuildMargin(ChildToAdd)
-                            HorizontalAlignment := BuildHorizontalAlignment(ChildToAdd)
-                            VerticalAlignment := BuildVerticalAlignment(ChildToAdd)
-                            Distribution := ChildToAdd.MyDistribution
-                        }
-                        NativeStackBox.AddWidget(NewSlot)
+            UpdateStackBoxSlot(NativeStackBox, Children, InChildView)
 
 hstack<public> := class(view):
     InternalBuildWidget<override>():UEUI.widget =
@@ -73,28 +74,7 @@ hstack<public> := class(view):
 
     UpdateChildSlot<override>(InChildView:view):void =
         if (NativeStackBox := UEUI.stack_box[BuiltWidget?]) then:
-            var IndexToRemove:int = -1
-            TargetWidget := InChildView.OnBuildWidget()
-            for (Index -> Child : Children) do:
-                SourceWidget := Child.OnBuildWidget()
-                if (SourceWidget = TargetWidget) then:
-                    set IndexToRemove = Index
-            
-            if (IndexToRemove >= 0) then:
-                for (Index := IndexToRemove..Children.Length - 1) do:
-                    if (ChildToRemove := Children[Index]) then:
-                        NativeStackBox.RemoveWidget(ChildToRemove.OnBuildWidget())
-                
-                for (Index := IndexToRemove..Children.Length - 1) do:
-                    if (ChildToAdd := Children[Index]) then:
-                        NewSlot := UEUI.stack_box_slot {
-                            Widget := ChildToAdd.OnBuildWidget()
-                            Padding := BuildMargin(ChildToAdd)
-                            HorizontalAlignment := BuildHorizontalAlignment(ChildToAdd)
-                            VerticalAlignment := BuildVerticalAlignment(ChildToAdd)
-                            Distribution := ChildToAdd.MyDistribution
-                        }
-                        NativeStackBox.AddWidget(NewSlot)
+            UpdateStackBoxSlot(NativeStackBox, Children, InChildView)
 
 zstack<public> := class(view):
     InternalBuildWidget<override>():UEUI.widget =

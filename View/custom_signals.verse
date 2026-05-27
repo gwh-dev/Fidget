@@ -54,3 +54,23 @@ computed_overflow_policy<public>:= class<final>(computed(overflow_policy)):
     GetCurrentValue<override>()<transacts>:overflow_policy = Value
     SetCurrentValue<override>(New:overflow_policy)<transacts>:void = set Value = New
     GetComputedValue<override>()<transacts>:overflow_policy = Function()
+
+signal_opacity<public>:= class<final>(signal(opacity)):
+    @editable
+    var Value<public>:opacity = 1.0
+    var PendingValue<private>:opacity = 1.0
+    GetCurrentValue<override>()<transacts>:opacity = Value
+    SetCurrentValue<override>(New:opacity)<transacts>:void = set Value = New
+    GetPendingValue<override>()<transacts>:opacity = PendingValue
+    SetPendingValue<override>(New:opacity)<transacts>:void = set PendingValue = New
+
+computed_opacity<public>:= class<final>(computed(opacity)):
+    Function<public>:computed_function(opacity)
+    @editable
+    var Value<public>:opacity = 1.0
+    GetCurrentValue<override>()<transacts>:opacity = Value
+    SetCurrentValue<override>(New:opacity)<transacts>:void = set Value = New
+    GetComputedValue<override>()<transacts>:opacity = Function()
+
+ComputedOpacity<public><constructor>(Function()<transacts>:opacity)<transacts>:=
+    computed_opacity {Value := 1.0, Function := Function}

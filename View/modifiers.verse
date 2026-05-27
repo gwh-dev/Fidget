@@ -181,3 +181,39 @@ EffectHandler(Function:type{_(:t):void}, InSignal:signal_get(t) where t:subtype(
 (InView:t).Text<public>(InSignal:signal_get(string) where t:subtype(text)):t =
     InView.AddCancelable(EffectHandler(InView.SetText, InSignal))
     InView
+
+(InView:t).Color<public>(InSignal:signal_get(color) where t:subtype(colorable)):t =
+    InView.AddCancelable(EffectHandler(InView.SetColor, InSignal))
+    InView
+
+(InView:t).Tint<public>(InSignal:signal_get(color) where t:subtype(tintable)):t =
+    InView.AddCancelable(EffectHandler(InView.SetTint, InSignal))
+    InView
+
+(InView:t).Opacity<public>(InSignal:signal_get(opacity) where t:subtype(opacity_able)):t =
+    InView.AddCancelable(EffectHandler(InView.SetOpacity, InSignal))
+    InView
+
+(InView:t).Visibility<public>(InSignal:signal_get(visibility) where t:subtype(view)):t =
+    InView.AddCancelable(EffectHandler(InView.SetVisibility, InSignal))
+    InView
+
+(InView:t).Enabled<public>(InSignal:signal_get(logic) where t:subtype(view)):t =
+    InView.AddCancelable(EffectHandler(InView.SetEnabled, InSignal))
+    InView
+
+(InView:t).Justification<public>(InSignal:signal_get(justification) where t:subtype(text_justifiable)):t =
+    InView.AddCancelable(EffectHandler(InView.SetJustification, InSignal))
+    InView
+
+(InView:t).OverflowPolicy<public>(InSignal:signal_get(overflow_policy) where t:subtype(text_overflowable)):t =
+    InView.AddCancelable(EffectHandler(InView.SetOverflowPolicy, InSignal))
+    InView
+
+(InView:t).ShadowColor<public>(InSignal:signal_get(color) where t:subtype(shadowable)):t =
+    InView.AddCancelable(EffectHandler(InView.SetShadowColor, InSignal))
+    InView
+
+(InView:t).ShadowOpacity<public>(InSignal:signal_get(opacity) where t:subtype(shadowable)):t =
+    InView.AddCancelable(EffectHandler(InView.SetShadowOpacity, InSignal))
+    InView
