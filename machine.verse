@@ -24,7 +24,7 @@ FidgetMachine<public>:= module:
 
     InternalState<internal>(OnEnter:?type{_()<suspends>:void}, Transitions:[]transition):state =
         var TransitionsMap:[comparable][]transition = map{}
-        for (_Transition : Transitions, Event := _Transition.Event?, set TransitionsMap[Event] += array {_Transition}) do {}
+        for (_Transition : Transitions, MyEvent := _Transition.Event?, set TransitionsMap[MyEvent] += array {_Transition}) do {}
 
         Immediates := option {for (_Transition : Transitions, not _Transition.Event?) do _Transition}
 

@@ -38,7 +38,8 @@ UpdateStackBoxSlot<internal>(NativeStackBox:UEUI.stack_box, InChildren:[]view, I
     var IndexToRemove:int = -1
     TargetWidget := InChildView.OnBuildWidget()
     for (Index -> Child : InChildren) do:
-        if (Child.OnBuildWidget() = TargetWidget) then:
+        Widget := Child.OnBuildWidget()
+        if (Widget = TargetWidget) then:
             set IndexToRemove = Index
 
     if (IndexToRemove >= 0) then:

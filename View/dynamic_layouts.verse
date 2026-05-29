@@ -25,44 +25,45 @@ dynamic_view<public> := class<abstract>(view):
     SetRenderedChildren<protected>(InChildren:[]view)<transacts>:void =
         set RenderedChildren = InChildren
 
-list_view<public>(t:type) := class(dynamic_view):
-    ItemBuilder<public>:type{_(:t):view}
+# list_view<public>(t:type) := class(dynamic_view):
+#     ItemBuilder<public>:type{_(:t):view}
 
-    var<private> RawItems:[]t = array{}
-    Version<private>:signal_int = signal_int{Value := 0}
+#     # var<private> RawItems:[]t = array{}
 
-    SetupEffect<override>():void =
-        AddCancelable(Effect(UpdateLayoutEffect))
+#     Version<private>:signal_int = signal_int{Value := 0}
 
-    SetItems<public>(NewItems:[]t):void =
-        set RawItems = NewItems
-        Version.Set(Version.Get() + 1)
+#     SetupEffect<override>():void =
+#         AddCancelable(Effect(UpdateLayoutEffect))
 
-    UpdateLayoutEffect<private>():void =
-        Version.Get()
-        UpdateView(RawItems)
+#     SetItems<public>(NewItems:[]t):void =
+#         set RawItems = NewItems
+#         Version.Set(Version.Get() + 1)
 
-    UpdateView<private>(NewItems:[]t):void =
-        if (StackBox := NativeStackBox?) then:
-            for (Child : GetRenderedChildren()) do:
-                if (Native := Child.BuiltWidget?):
-                    StackBox.RemoveWidget(Native)
-                Child.Dispose()
+#     UpdateLayoutEffect<private>():void =
+#         Version.Get()
+#         UpdateView(RawItems)
 
-            var NewChildren:[]view = array{}
-            for (ItemData : NewItems) do:
-                Item := ItemBuilder(ItemData)
-                Item.SetParent(Self)
-                set NewChildren = NewChildren + array{Item}
-                StackBox.AddWidget(UEUI.stack_box_slot {
-                    Widget := Item.OnBuildWidget()
-                    Padding := BuildMargin(Item)
-                    HorizontalAlignment := BuildHorizontalAlignment(Item)
-                    VerticalAlignment := BuildVerticalAlignment(Item)
-                    Distribution := Item.MyDistribution
-                })
+#     UpdateView<private>(NewItems:[]t):void =
+#         if (StackBox := NativeStackBox?) then:
+#             for (Child : GetRenderedChildren()) do:
+#                 if (Native := Child.BuiltWidget?):
+#                     StackBox.RemoveWidget(Native)
+#                 Child.Dispose()
 
-            SetRenderedChildren(NewChildren)
+#             var NewChildren:[]view = array{}
+#             for (ItemData : NewItems) do:
+#                 Item := ItemBuilder(ItemData)
+#                 Item.SetParent(Self)
+#                 set NewChildren = NewChildren + array{Item}
+#                 StackBox.AddWidget(UEUI.stack_box_slot {
+#                     Widget := Item.OnBuildWidget()
+#                     Padding := BuildMargin(Item)
+#                     HorizontalAlignment := BuildHorizontalAlignment(Item)
+#                     VerticalAlignment := BuildVerticalAlignment(Item)
+#                     Distribution := Item.MyDistribution
+#                 })
+
+#             SetRenderedChildren(NewChildren)
 
 switch_view<public>(t:subtype(comparable)) := class(dynamic_view):
     Match<public>:signal_get(t)
