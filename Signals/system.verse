@@ -34,6 +34,9 @@ reactive_node<internal>:= class<unique><abstract><transacts>:
     var Subs<public>:?reactive_link = false
     var SubsTail<public>:?reactive_link = false
     var Flags<public>:reactive_flags = reactive_flags{}
+    # Set by a deferred Cancel; the scheduler skips dead nodes until the
+    # post-flush drain physically unlinks them.
+    var IsDead<public>:logic = false
 
     # Override in subtypes. Success = value changed.
     Update<public>()<transacts><decides>:void = false
@@ -52,6 +55,24 @@ reactive_system<internal>:= class<final><concrete><transacts>:
     var NotifyIndex:int = 0
     var QueuedEffects:[]?reactive_node = array{}
     var QueuedLength:int = 0
+    # Effects cancelled while ActiveSub is live (some dependency list is being
+    # built or purged); physically unlinking then would corrupt that list, so
+    # they wait here until DrainDeferredCancels runs at a safe point — and a
+    # safe point REQUIRES ActiveSub to be empty (a nested flush from a Set
+    # inside an effect run must not drain; the outermost caller does).
+    var DeferredCancels:[]effect = array{}
+
+    DeferCancel(Node:effect)<transacts>:void =
+        set DeferredCancels = DeferredCancels + array{Node}
+
+    DrainDeferredCancels():void =
+        loop:
+            if (DeferredCancels.Length = 0):
+                break
+            Pending := DeferredCancels
+            set DeferredCancels = array{}
+            for (Node : Pending):
+                Node.CancelNow(Self)
 
     SetActiveSub(Sub:?reactive_node)<transacts>:?reactive_node =
         PrevSub := ActiveSub
@@ -370,6 +391,8 @@ reactive_system<internal>:= class<final><concrete><transacts>:
                 break
 
         RestoreQueuedEffectsFlags()
+        if (not ActiveSub?):
+            DrainDeferredCancels()
 
     RestoreQueuedEffectsFlags()<transacts>:void =
         loop:
@@ -394,6 +417,8 @@ reactive_system<internal>:= class<final><concrete><transacts>:
         set NotifyIndex = NotifyIndex + 1
 
     RunEffect(E:reactive_node):void =
+        if (E.IsDead?):
+            return
         EFlags := E.Flags
         if:
             EFlags.IsDirty?

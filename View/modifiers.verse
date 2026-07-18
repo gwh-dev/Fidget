@@ -3,27 +3,37 @@ using { /Verse.org/Colors }
 
 using { Signals }
 
-# # ----------------- Interfaces -----------------
+# ============================================================================
+#  MODIFIERS — capability contracts + the chainable property surface.
+#
+#  Capability interfaces are PURE contracts (Set*/wire methods only). Every
+#  chainable modifier lives at module scope, is generic over the receiving
+#  class, and returns t — the REAL class of the receiver — so chains never
+#  widen to view or an interface and class members stay reachable after any
+#  modifier.
+#
+#  Properties come in const/signal pairs with one call shape: .Text("hi")
+#  sets once, .Text(Signal) binds an effect that re-applies on every change
+#  (EffectHandler wraps the setter; the cancelable joins the receiver's
+#  Cancelables and dies with it). Signal binders constrain t to a CLASS
+#  (view / text), never to a capability interface: extracting a bound setter
+#  needs a class-typed receiver, and interface-hosted extension methods do
+#  not resolve on class receivers.
+#
+#  Event modifiers hand the handler straight to the receiver's Set wire,
+#  which subscribes it DIRECTLY on the native widget event (see button) —
+#  payload variants ride modifier_handler, the no-closure adapter binding
+#  one value to one handler.
+# ============================================================================
+
 colorable<public>:= interface:
     SetColor<public>(InColor:color):void
-
-    (InView:t).Color<public>(InSignal:signal_get(color) where t:subtype(view)):t =
-        InView.AddCancelable(EffectHandler(SetColor, InSignal))
-        InView
 
 tintable<public>:= interface:
     SetTint<public>(InTint:color):void
 
-    (InView:t).Tint<public>(InSignal:signal_get(color) where t:subtype(view)):t =
-        InView.AddCancelable(EffectHandler(SetTint, InSignal))
-        InView
-
 opacity_able<public>:= interface:
     SetOpacity<public>(InOpacity:opacity):void
-
-    (InView:t).Opacity<public>(InSignal:signal_get(opacity) where t:subtype(view)):t =
-        InView.AddCancelable(EffectHandler(SetOpacity, InSignal))
-        InView
 
 desired_sizeable<public>:= interface:
     SetDesiredSize<public>(InSize:vector2):void
@@ -34,29 +44,16 @@ tileable<public>:= interface:
 text_justifiable<public>:= interface:
     SetJustification<public>(InJustification:justification):void
 
-    (InView:t).Justification<public>(InSignal:signal_get(justification) where t:subtype(view)):t =
-        InView.AddCancelable(EffectHandler(SetJustification, InSignal))
-        InView
-
 text_overflowable<public>:= interface:
     SetOverflowPolicy<public>(InOverflowPolicy:overflow_policy):void
-
-    (InView:t).OverflowPolicy<public>(InSignal:signal_get(overflow_policy) where t:subtype(view)):t =
-        InView.AddCancelable(EffectHandler(SetOverflowPolicy, InSignal))
-        InView
 
 shadowable<public>:= interface:
     SetShadowOffset<public>(InOffset:vector2):void
     SetShadowColor<public>(InColor:color):void
     SetShadowOpacity<public>(InOpacity:opacity):void
 
-    (InView:t).ShadowColor<public>(InSignal:signal_get(color) where t:subtype(view)):t =
-        InView.AddCancelable(EffectHandler(SetShadowColor, InSignal))
-        InView
-
-    (InView:t).ShadowOpacity<public>(InSignal:signal_get(opacity) where t:subtype(view)):t =
-        InView.AddCancelable(EffectHandler(SetShadowOpacity, InSignal))
-        InView
+textable<public>:= interface:
+    SetText<public>(InText:string):void
 
 clickable<public>:= interface:
     SetOnClick<public>(InHandler:type{_():void}):void
@@ -70,11 +67,15 @@ modifier_handler(t:type) := class:
     InputFunction:type{_(:t):void}
     OutputFunction():void = InputFunction(Value)
 
-# # # ----------------- Base View Modifiers -----------------
+EffectSetHandler(Function:type{_(:t):void}, InSignal:signal_get(t) where t:subtype(comparable)):void =
+    Function(InSignal.Get())
+
+EffectHandler(Function:type{_(:t):void}, InSignal:signal_get(t) where t:subtype(comparable)):cancelable =
+    EffectWith(EffectSetHandler, (Function, InSignal))
 
 UpdateChildSlotHandler(InView:view):void =
     if (Parent := InView.GetParent[]) then:
-        Parent.UpdateChildSlot(InView)
+        Parent.OnUpdateChildSlot(InView)
 
 EffectWatchHandler(Function:type{_(:t):void}, InValue:t where t:subtype(view)):void =
     Function(InValue)
@@ -126,7 +127,6 @@ EffectWatchHandler(Function:type{_(:t):void}, InValue:t where t:subtype(view)):v
     UpdateChildSlotHandler(InView)
     InView
 
-# # # # ----------------- Trait Modifiers -----------------
 (InView:t).Color<public>(InColor:color where t:subtype(colorable)):t =
     InView.SetColor(InColor)
     InView
@@ -167,7 +167,7 @@ EffectWatchHandler(Function:type{_(:t):void}, InValue:t where t:subtype(view)):v
     InView.SetShadowOpacity(InOpacity)
     InView
 
-(InView:t).Text<public>(InText:string where t:subtype(text)):t =
+(InView:t).Text<public>(InText:string where t:subtype(textable)):t =
     InView.SetText(InText)
     InView
 
@@ -198,15 +198,12 @@ EffectWatchHandler(Function:type{_(:t):void}, InValue:t where t:subtype(view)):v
     InView.SetOnUnhighlight(ModifierHandler.OutputFunction)
     InView
 
-# # # ----------------- Reactive Bindings -----------------
-EffectSetHandler(Function:type{_(:t):void}, InSignal:signal_get(t) where t:subtype(comparable)):void =
-    Function(InSignal.Get())
-
-EffectHandler(Function:type{_(:t):void}, InSignal:signal_get(t) where t:subtype(comparable)):cancelable =
-    EffectWith(EffectSetHandler, (Function, InSignal))
-
 (InView:t).Text<public>(InSignal:signal_get(string) where t:subtype(text)):t =
     InView.AddCancelable(EffectHandler(InView.SetText, InSignal))
+    InView
+
+(InView:t).Color<public>(InSignal:signal_get(color) where t:subtype(text)):t =
+    InView.AddCancelable(EffectHandler(InView.SetColor, InSignal))
     InView
 
 (InView:t).Visibility<public>(InSignal:signal_get(visibility) where t:subtype(view)):t =
@@ -216,4 +213,3 @@ EffectHandler(Function:type{_(:t):void}, InSignal:signal_get(t) where t:subtype(
 (InView:t).Enabled<public>(InSignal:signal_get(logic) where t:subtype(view)):t =
     InView.AddCancelable(EffectHandler(InView.SetEnabled, InSignal))
     InView
-

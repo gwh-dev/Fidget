@@ -4,113 +4,62 @@ using { /Verse.org/Colors }
 
 using { Signals }
 
-StringToMessage<internal><localizes>(String:string):message = "{String}"
+# ============================================================================
+#  NATIVE PRIMITIVES — text and button, on the generic view_native(t) base:
+#  each declares OnBuildNativeWidget (its native constructor) and one-line
+#  Set* forwarders; caching and the build seam live in view_native. Button
+#  event wires subscribe handlers DIRECTLY on the native widget events via
+#  native_event_adapter (widget_message -> plain handler), so there are no
+#  handler arrays and no fan-out methods anywhere.
+# ============================================================================
 
-text<public>:= class(view, colorable, opacity_able, text_justifiable, text_overflowable, shadowable):
-    Label<public>:string
+StringToMessage<internal><localizes>(String:string)<computes>:message = "{String}"
 
-    var<private>NativeTextBlock<public>:?FNUI.text_block = false
+native_event_adapter<internal> := class:
+    Handler<internal>:type{_():void}
+    Invoke<internal>(Message:UEUI.widget_message):void = Handler()
 
-    GetWidget<internal>():FNUI.text_block =
-        if (TextBlock := NativeTextBlock?) then:
-            TextBlock
-        else:
-            Message := StringToMessage(Label)
-            NewTextBlock := FNUI.text_block {DefaultText := Message}
-            set NativeTextBlock = option {NewTextBlock}
-            NewTextBlock
-    
-    InternalBuildWidget<override>():UEUI.widget =
-        GetWidget()
+text<public>:= class(view_native(FNUI.text_block), textable, colorable, opacity_able, text_justifiable, text_overflowable, shadowable):
+    OnBuildNativeWidget<override>():FNUI.text_block = FNUI.text_block{}
 
-    SetText<public>(InText:string):void =
-        GetWidget().SetText(StringToMessage(InText))
-            
-    SetColor<override>(InColor:color):void =
-        GetWidget().SetTextColor(InColor)
+    SetText<override>(InText:string):void = GetWidget().SetText(StringToMessage(InText))
+    SetColor<override>(InColor:color):void = GetWidget().SetTextColor(InColor)
+    SetOpacity<override>(InOpacity:opacity):void = GetWidget().SetTextOpacity(InOpacity)
+    SetJustification<override>(InJustification:justification):void = GetWidget().SetJustification(ToTextJustification(InJustification))
+    SetOverflowPolicy<override>(InOverflowPolicy:overflow_policy):void = GetWidget().SetOverflowPolicy(ToTextOverflowPolicy(InOverflowPolicy))
+    SetShadowOffset<override>(InShadowOffset:vector2):void = GetWidget().SetShadowOffset(option{InShadowOffset})
+    SetShadowColor<override>(InColor:color):void = GetWidget().SetShadowColor(InColor)
+    SetShadowOpacity<override>(InOpacity:opacity):void = GetWidget().SetShadowOpacity(InOpacity)
 
-    SetOpacity<override>(InOpacity:opacity):void =
-        GetWidget().SetTextOpacity(InOpacity)
-
-    SetJustification<override>(InJustification:justification):void =
-        GetWidget().SetJustification(ToTextJustification(InJustification))
-
-    SetOverflowPolicy<override>(InOverflowPolicy:overflow_policy):void =
-        GetWidget().SetOverflowPolicy(ToTextOverflowPolicy(InOverflowPolicy))
-
-    SetShadowOffset<override>(InShadowOffset:vector2):void =
-        GetWidget().SetShadowOffset(option {InShadowOffset})
-
-    SetShadowColor<override>(InColor:color):void =
-        GetWidget().SetShadowColor(InColor)
-
-    SetShadowOpacity<override>(InOpacity:opacity):void =
-        GetWidget().SetShadowOpacity(InOpacity)
-
-
-button<public>:= class(view, clickable, highlightable):
+button<public>:= class(view_native(UEUI.button), clickable, highlightable):
     IsInteractable<override>()<transacts><decides>:void = {}
 
     Child<public>:view
 
-    var<private>NativeButton<public>:?UEUI.button = false
+    block:
+        set Children = array{Child}
 
-    GetWidget<internal>():UEUI.button =
-        if (Button := NativeButton?) then:
-            Button
-        else:
-            Child.SetParent(Self)
-            Slot := UEUI.button_slot {
-                Widget := Child.OnBuildWidget()
-                Padding := BuildMargin(Child)
-                HorizontalAlignment := BuildHorizontalAlignment(Child)
-                VerticalAlignment := BuildVerticalAlignment(Child)
-            }
-            NewButton := UEUI.button {Slot := Slot}
-            
-            AddCancelable(NewButton.OnClick().Subscribe(HandleClick))
-            AddCancelable(NewButton.HighlightEvent().Subscribe(HandleHighlight))
-            AddCancelable(NewButton.UnhighlightEvent().Subscribe(HandleUnhighlight))
+    OnBuildNativeWidget<override>():UEUI.button =
+        Child.SetParent(Self)
+        UEUI.button{Slot := UEUI.button_slot{
+            Widget := Child.Build()
+            Padding := BuildMargin(Child)
+            HorizontalAlignment := BuildHorizontalAlignment(Child)
+            VerticalAlignment := BuildVerticalAlignment(Child)
+        }}
 
-            set NativeButton = option {NewButton}
-            NewButton
-
-    InternalBuildWidget<override>():UEUI.widget =
-        GetWidget()
-
-    UpdateChildSlot<override>(InChildView:view):void =
-        TargetWidget := InChildView.OnBuildWidget()
-        SourceWidget := Child.OnBuildWidget()
-        if (SourceWidget = TargetWidget, Button := NativeButton?) then:
-            Slot := UEUI.button_slot {
+    OnUpdateChildSlot<override>(InChildView:view):void =
+        TargetWidget := InChildView.Build()
+        SourceWidget := Child.Build()
+        if (SourceWidget = TargetWidget):
+            Button := GetWidget()
+            Button.SetWidget(UEUI.button_slot{
                 Widget := TargetWidget
                 Padding := BuildMargin(Child)
                 HorizontalAlignment := BuildHorizontalAlignment(Child)
                 VerticalAlignment := BuildVerticalAlignment(Child)
-            }
-            Button.SetWidget(Slot)
+            })
 
-    var<private>OnClickHandlers:[]type{_():void} = array{}
-    var<private>OnHighlightHandlers:[]type{_():void} = array{}
-    var<private>OnUnhighlightHandlers:[]type{_():void} = array{}
-
-    SetOnClick<override>(InHandler:type{_():void}):void =
-        set OnClickHandlers = OnClickHandlers + array{InHandler}
-
-    SetOnHighlight<override>(InHandler:type{_():void}):void =
-        set OnHighlightHandlers = OnHighlightHandlers + array{InHandler}
-
-    SetOnUnhighlight<override>(InHandler:type{_():void}):void =
-        set OnUnhighlightHandlers = OnUnhighlightHandlers + array{InHandler}
-
-    HandleClick<private>(Msg:UEUI.widget_message):void =
-        for (Handler : OnClickHandlers) do:
-            Handler()
-
-    HandleHighlight<private>(Msg:UEUI.widget_message):void =
-        for (Handler : OnHighlightHandlers) do:
-            Handler()
-
-    HandleUnhighlight<private>(Msg:UEUI.widget_message):void =
-        for (Handler : OnUnhighlightHandlers) do:
-            Handler()
+    SetOnClick<override>(InHandler:type{_():void}):void = AddCancelable(GetWidget().OnClick().Subscribe(native_event_adapter{Handler := InHandler}.Invoke))
+    SetOnHighlight<override>(InHandler:type{_():void}):void = AddCancelable(GetWidget().HighlightEvent().Subscribe(native_event_adapter{Handler := InHandler}.Invoke))
+    SetOnUnhighlight<override>(InHandler:type{_():void}):void = AddCancelable(GetWidget().UnhighlightEvent().Subscribe(native_event_adapter{Handler := InHandler}.Invoke))

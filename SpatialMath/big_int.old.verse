@@ -11,30 +11,6 @@ big_int<public>:= struct<persistable><computes><concrete>{
     IsNegative:logic = false
 }
 
-(SpatialMath:)Signals<public>:= module:
-    using { Fidget.Signals }
-
-    signal_big_int<public>:= class<final>(signal(big_int)):
-        @editable
-        var DefaultValue<public>:big_int
-        var PendingValue<private>:big_int = big_int {}
-        GetCurrentValue<override>()<transacts>:big_int = DefaultValue
-        SetCurrentValue<override>(New:big_int)<transacts>:void = set DefaultValue = New
-        GetPendingValue<override>()<transacts>:big_int = PendingValue
-        SetPendingValue<override>(New:big_int)<transacts>:void = set PendingValue = New
-
-    computed_big_int<public>:= class<final>(computed(big_int)):
-        Function<public>:computed_function(big_int)
-
-        @editable
-        var DefaultValue<public>:big_int
-        GetCurrentValue<override>()<transacts>:big_int = DefaultValue
-        SetCurrentValue<override>(New:big_int)<transacts>:void = set DefaultValue = New
-        GetComputedValue<override>()<transacts>:big_int = Function()
-
-    ComputedBigInt<public><constructor>(Function()<transacts>:big_int) :=
-        computed_big_int {DefaultValue := big_int {}, Function := Function}
-
 LimbToInt<internal>(Input:string, Index:int, Num:int)<computes>:int = {
     return LimbToInt(Input, Index + 1, Num * 10 + case(Input[Index]) {
         '0' => 0; '1' => 1; '2' => 2

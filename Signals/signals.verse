@@ -6,12 +6,15 @@ signal_get<public>(t:subtype(comparable)) := interface<internal>:
 signal_set<public>(t:subtype(comparable)) := interface<internal>:
     Set<public>(:t):void
 
-signal<public>(t:subtype(comparable)) := class<abstract>(reactive_node, signal_get(t), signal_set(t)):
-    GetCurrentValue<public>()<transacts>:t
-    SetCurrentValue<public>(:t)<transacts>:void
+signal<public>(t:subtype(comparable)) := class(reactive_node, signal_get(t), signal_set(t)):
+    var Value<public>:t
+    var PendingValue<public>:?t = false
 
-    GetPendingValue<public>()<transacts>:t
-    SetPendingValue<public>(:t)<transacts>:void
+    GetCurrentValue<public>()<transacts>:t = Value
+    SetCurrentValue<public>(New:t)<transacts>:void = set Value = New
+
+    GetPendingValue<public>()<transacts>:t = PendingValue? or Err()
+    SetPendingValue<public>(New:t)<transacts>:void = set PendingValue = option {New}
 
     block:
         SetPendingValue(GetCurrentValue())
@@ -62,11 +65,17 @@ signal<public>(t:subtype(comparable)) := class<abstract>(reactive_node, signal_g
                 return true
         false
 
+MakeSignal<public>(t:subtype(comparable), InValue:t):signal(t) =
+    signal(t){Value := InValue, PendingValue := option {InValue}}
+
 computed_function<public>(t:subtype(comparable)) := type{_()<transacts>:t}
-computed<public>(t:subtype(comparable)) := class<abstract>(reactive_node, signal_get(t)):
-    GetCurrentValue<public>()<transacts>:t
-    SetCurrentValue<public>(:t)<transacts>:void
-    GetComputedValue<public>()<transacts>:t
+computed<public>(t:subtype(comparable)) := class(reactive_node, signal_get(t)):
+    Function<public>:computed_function(t)
+    var Value<public>:t
+
+    GetCurrentValue<public>()<transacts>:t = Value
+    SetCurrentValue<public>(New:t)<transacts>:void = set Value = New
+    GetComputedValue<public>()<transacts>:t = Function()
 
     Update<final><override>()<transacts><decides>:void =
         # Called by CheckDirty — do the actual re-evaluation
@@ -130,12 +139,27 @@ computed<public>(t:subtype(comparable)) := class<abstract>(reactive_node, signal
 
         GetCurrentValue()
 
+Computed<public>(t:subtype(comparable), Function:computed_function(t), Initial:t):computed(t) =
+    computed(t){Function := Function, Value := Initial}
+
 effect<public>:= class<abstract>(reactive_node, cancelable):
     Run<public>():void =
         GetReactiveSystem().RunEffect(Self)
 
+    # Safe under a live ActiveSub (mid effect-run/creation or computed eval):
+    # unlinking then would corrupt the dependency list being built, so the
+    # node is only marked dead and queued; DrainDeferredCancels finishes the
+    # physical unlink at the next safe point. CancelNow is idempotent, so a
+    # node the parent's purge already tore down cleans up as a no-op.
     Cancel<override>()<transacts>:void =
+        set IsDead = true
         Sys := GetReactiveSystem()
+        if (Sys.ActiveSub?):
+            Sys.DeferCancel(Self)
+        else:
+            CancelNow(Sys)
+
+    CancelNow<internal>(Sys:reactive_system)<transacts>:void =
         set DepsTail = false
         set Flags = reactive_flags{}
         Sys.PurgeDeps(Self)

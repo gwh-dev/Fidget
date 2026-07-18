@@ -1,4 +1,6 @@
 
+opacity<public> := type{_X:float where 0.000000 <= _X, _X <= 1.000000}
+
 padding<public>:= struct:
     Top:float = 0.0
     Left:float = 0.0
